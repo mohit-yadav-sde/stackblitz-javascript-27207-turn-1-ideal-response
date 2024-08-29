@@ -1,23 +1,238 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <title>Home</title>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width" />
-    <!--
-      Need a visual blank slate?
-      Remove all code in `styles.css`!
-    -->
-    <link rel="stylesheet" href="styles.css" />
-    <script type="module" src="script.js"></script>
-  </head>
-  <body>
-    <nav>
-      <a href="/" aria-current="page">Home</a>
-      <a href="/page2.html">Other page</a>
-    </nav>
-    <main>
-      <h1>Home page</h1>
-    </main>
-  </body>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Loan Repayment Widget</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .section {
+            margin-bottom: 20px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+    </style>
+</head>
+<body>
+    <h1>Student Loan Repayment Widget</h1>
+
+    <div class="section">
+        <h2>Loan Input</h2>
+        <form id="loanForm">
+            <label for="principal">Principal Amount:</label>
+            <input type="number" id="principal" required><br>
+            <label for="interestRate">Interest Rate (%):</label>
+            <input type="number" id="interestRate" step="0.01" required><br>
+            <label for="loanTerm">Loan Term (months):</label>
+            <input type="number" id="loanTerm" required><br>
+            <label for="startDate">Start Date:</label>
+            <input type="date" id="startDate" required><br>
+            <button type="submit">Add Loan</button>
+        </form>
+    </div>
+
+    <div class="section">
+        <h2>Loan Summary</h2>
+        <table id="loanSummary">
+            <tr>
+                <th>Principal</th>
+                <th>Interest Rate</th>
+                <th>Loan Term</th>
+                <th>Start Date</th>
+                <th>Total Owed</th>
+                <th>Accrued Interest</th>
+                <th>Remaining Balance</th>
+            </tr>
+        </table>
+    </div>
+
+    <div class="section">
+        <h2>Payment Logging</h2>
+        <form id="paymentForm">
+            <label for="loanIndex">Loan Index:</label>
+            <input type="number" id="loanIndex" required><br>
+            <label for="paymentAmount">Payment Amount:</label>
+            <input type="number" id="paymentAmount" required><br>
+            <label for="paymentDate">Payment Date:</label>
+            <input type="date" id="paymentDate" required><br>
+            <button type="submit">Log Payment</button>
+        </form>
+    </div>
+
+    <div class="section">
+        <h2>Repayment Schedule</h2>
+        <table id="repaymentSchedule">
+            <tr>
+                <th>Payment #</th>
+                <th>Payment Amount</th>
+                <th>Principal</th>
+                <th>Interest</th>
+                <th>Remaining Balance</th>
+            </tr>
+        </table>
+    </div>
+
+    <div class="section">
+        <h2>Progress Visualization</h2>
+        <canvas id="progressChart"></canvas>
+    </div>
+
+    <script>
+        let loans = [];
+        const loanForm = document.getElementById('loanForm');
+        const paymentForm = document.getElementById('paymentForm');
+        const loanSummary = document.getElementById('loanSummary');
+        const repaymentSchedule = document.getElementById('repaymentSchedule');
+        const progressChart = document.getElementById('progressChart');
+        let chart;
+
+        loanForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const loan = {
+                principal: parseFloat(document.getElementById('principal').value),
+                interestRate: parseFloat(document.getElementById('interestRate').value) / 100,
+                loanTerm: parseInt(document.getElementById('loanTerm').value),
+                startDate: new Date(document.getElementById('startDate').value),
+                currentBalance: parseFloat(document.getElementById('principal').value),
+                payments: []
+            };
+            loans.push(loan);
+            updateLoanSummary();
+            updateRepaymentSchedule(loan);
+            updateProgressChart();
+        });
+
+        paymentForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const loanIndex = parseInt(document.getElementById('loanIndex').value);
+            const paymentAmount = parseFloat(document.getElementById('paymentAmount').value);
+            const paymentDate = new Date(document.getElementById('paymentDate').value);
+            
+            if (loanIndex >= 0 && loanIndex < loans.length) {
+                logPayment(loans[loanIndex], paymentAmount, paymentDate);
+                updateLoanSummary();
+                updateRepaymentSchedule(loans[loanIndex]);
+                updateProgressChart();
+            } else {
+                alert("Invalid loan index");
+            }
+        });
+
+        function logPayment(loan, paymentAmount, paymentDate) {
+            const daysSinceLastPayment = (paymentDate - (loan.payments.length > 0 ? new Date(loan.payments[loan.payments.length - 1].date) : loan.startDate)) / (1000 * 60 * 60 * 24);
+            const interestAccrued = loan.currentBalance * (loan.interestRate / 365) * daysSinceLastPayment;
+            
+            const interestPayment = Math.min(interestAccrued, paymentAmount);
+            const principalPayment = paymentAmount - interestPayment;
+            
+            loan.currentBalance -= principalPayment;
+
+            loan.payments.push({
+                date: paymentDate,
+                amount: paymentAmount,
+                principal: principalPayment,
+                interest: interestPayment,
+                remainingBalance: loan.currentBalance
+            });
+        }
+
+        function updateLoanSummary() {
+            loanSummary.innerHTML = `
+                <tr>
+                    <th>Principal</th>
+                    <th>Interest Rate</th>
+                    <th>Loan Term</th>
+                    <th>Start Date</th>
+                    <th>Total Owed</th>
+                    <th>Accrued Interest</th>
+                    <th>Remaining Balance</th>
+                </tr>
+            `;
+            loans.forEach((loan, index) => {
+                const totalPaid = loan.payments.reduce((sum, payment) => sum + payment.amount, 0);
+                const accruedInterest = loan.payments.reduce((sum, payment) => sum + payment.interest, 0);
+                loanSummary.innerHTML += `
+                    <tr>
+                        <td>$${loan.principal.toFixed(2)}</td>
+                        <td>${(loan.interestRate * 100).toFixed(2)}%</td>
+                        <td>${loan.loanTerm} months</td>
+                        <td>${loan.startDate.toLocaleDateString()}</td>
+                        <td>$${(loan.principal + accruedInterest).toFixed(2)}</td>
+                        <td>$${accruedInterest.toFixed(2)}</td>
+                        <td>$${loan.currentBalance.toFixed(2)}</td>
+                    </tr>
+                `;
+            });
+        }
+
+        function updateRepaymentSchedule(loan) {
+            repaymentSchedule.innerHTML = `
+                <tr>
+                    <th>Payment #</th>
+                    <th>Payment Date</th>
+                    <th>Payment Amount</th>
+                    <th>Principal</th>
+                    <th>Interest</th>
+                    <th>Remaining Balance</th>
+                </tr>
+            `;
+            loan.payments.forEach((payment, index) => {
+                repaymentSchedule.innerHTML += `
+                    <tr>
+                        <td>${index + 1}</td>
+                        <td>${new Date(payment.date).toLocaleDateString()}</td>
+                        <td>$${payment.amount.toFixed(2)}</td>
+                        <td>$${payment.principal.toFixed(2)}</td>
+                        <td>$${payment.interest.toFixed(2)}</td>
+                        <td>$${payment.remainingBalance.toFixed(2)}</td>
+                    </tr>
+                `;
+            });
+        }
+
+        function updateProgressChart() {
+            const totalPrincipal = loans.reduce((sum, loan) => sum + loan.principal, 0);
+            const totalPaid = loans.reduce((sum, loan) => sum + loan.payments.reduce((paymentSum, payment) => paymentSum + payment.amount, 0), 0);
+            const remainingBalance = loans.reduce((sum, loan) => sum + loan.currentBalance, 0);
+
+            if (chart) {
+                chart.destroy();
+            }
+
+            chart = new Chart(progressChart, {
+                type: 'pie',
+                data: {
+                    labels: ['Paid Off', 'Remaining Balance'],
+                    datasets: [{
+                        data: [totalPaid, remainingBalance],
+                        backgroundColor: ['#36a2eb', '#ff6384']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    title: {
+                        display: true,
+                        text: 'Loan Progress'
+                    }
+                }
+            });
+        }
+    </script>
+</body>
 </html>
