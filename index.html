@@ -65,8 +65,8 @@
     <div class="section">
         <h2>Payment Logging</h2>
         <form id="paymentForm">
-            <label for="loanIndex">Loan Index:</label>
-            <input type="number" id="loanIndex" required><br>
+            <label for="loanIndex">Loan:</label>
+            <select id="loanIndex" required></select><br>
             <label for="paymentAmount">Payment Amount:</label>
             <input type="number" id="paymentAmount" required><br>
             <label for="paymentDate">Payment Date:</label>
@@ -76,10 +76,11 @@
     </div>
 
     <div class="section">
-        <h2>Repayment Schedule</h2>
-        <table id="repaymentSchedule">
+        <h2>Amortization Table</h2>
+        <table id="amortizationTable">
             <tr>
                 <th>Payment #</th>
+                <th>Payment Date</th>
                 <th>Payment Amount</th>
                 <th>Principal</th>
                 <th>Interest</th>
@@ -98,8 +99,9 @@
         const loanForm = document.getElementById('loanForm');
         const paymentForm = document.getElementById('paymentForm');
         const loanSummary = document.getElementById('loanSummary');
-        const repaymentSchedule = document.getElementById('repaymentSchedule');
+        const amortizationTable = document.getElementById('amortizationTable');
         const progressChart = document.getElementById('progressChart');
+        const loanIndexSelect = document.getElementById('loanIndex');
         let chart;
 
         loanForm.addEventListener('submit', function(e) {
@@ -114,8 +116,9 @@
             };
             loans.push(loan);
             updateLoanSummary();
-            updateRepaymentSchedule(loan);
+            generateAmortizationTable(loan);
             updateProgressChart();
+            updateLoanSelector();
         });
 
         paymentForm.addEventListener('submit', function(e) {
@@ -127,27 +130,22 @@
             if (loanIndex >= 0 && loanIndex < loans.length) {
                 logPayment(loans[loanIndex], paymentAmount, paymentDate);
                 updateLoanSummary();
-                updateRepaymentSchedule(loans[loanIndex]);
+                generateAmortizationTable(loans[loanIndex]);
                 updateProgressChart();
-            } else {
-                alert("Invalid loan index");
             }
         });
 
         function logPayment(loan, paymentAmount, paymentDate) {
-            const daysSinceLastPayment = (paymentDate - (loan.payments.length > 0 ? new Date(loan.payments[loan.payments.length - 1].date) : loan.startDate)) / (1000 * 60 * 60 * 24);
-            const interestAccrued = loan.currentBalance * (loan.interestRate / 365) * daysSinceLastPayment;
+            const monthlyRate = loan.interestRate / 12;
+            const interestAmount = loan.currentBalance * monthlyRate;
+            const principalAmount = paymentAmount - interestAmount;
             
-            const interestPayment = Math.min(interestAccrued, paymentAmount);
-            const principalPayment = paymentAmount - interestPayment;
-            
-            loan.currentBalance -= principalPayment;
-
+            loan.currentBalance -= principalAmount;
             loan.payments.push({
                 date: paymentDate,
                 amount: paymentAmount,
-                principal: principalPayment,
-                interest: interestPayment,
+                principal: principalAmount,
+                interest: interestAmount,
                 remainingBalance: loan.currentBalance
             });
         }
@@ -164,7 +162,7 @@
                     <th>Remaining Balance</th>
                 </tr>
             `;
-            loans.forEach((loan, index) => {
+            loans.forEach(loan => {
                 const totalPaid = loan.payments.reduce((sum, payment) => sum + payment.amount, 0);
                 const accruedInterest = loan.payments.reduce((sum, payment) => sum + payment.interest, 0);
                 loanSummary.innerHTML += `
@@ -181,8 +179,8 @@
             });
         }
 
-        function updateRepaymentSchedule(loan) {
-            repaymentSchedule.innerHTML = `
+        function generateAmortizationTable(loan) {
+            amortizationTable.innerHTML = `
                 <tr>
                     <th>Payment #</th>
                     <th>Payment Date</th>
@@ -193,10 +191,10 @@
                 </tr>
             `;
             loan.payments.forEach((payment, index) => {
-                repaymentSchedule.innerHTML += `
+                amortizationTable.innerHTML += `
                     <tr>
                         <td>${index + 1}</td>
-                        <td>${new Date(payment.date).toLocaleDateString()}</td>
+                        <td>${payment.date.toLocaleDateString()}</td>
                         <td>$${payment.amount.toFixed(2)}</td>
                         <td>$${payment.principal.toFixed(2)}</td>
                         <td>$${payment.interest.toFixed(2)}</td>
@@ -231,6 +229,16 @@
                         text: 'Loan Progress'
                     }
                 }
+            });
+        }
+
+        function updateLoanSelector() {
+            loanIndexSelect.innerHTML = '';
+            loans.forEach((loan, index) => {
+                const option = document.createElement('option');
+                option.value = index;
+                option.textContent = `Loan ${index + 1}: $${loan.principal}`;
+                loanIndexSelect.appendChild(option);
             });
         }
     </script>
